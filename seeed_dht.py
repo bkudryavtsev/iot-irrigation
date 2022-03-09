@@ -1,98 +1,77 @@
-#!/usr/bin/env python
-#
-# This code is for
-#   Grove - Temperature & Humidity Sensor (DHT11)
-#     (https://www.seeedstudio.com/Grove-Temperature-Humidity-Sensor-DHT1-p-745.html)
-#   Grove - Temperature & Humidity Sensor Pro (AM2302)
-#     (https://www.seeedstudio.com/Grove-Temperature-Humidity-Sensor-Pro-AM230-p-838.html)
-#
-# which is consists of a capacitive sensor element used for measuring relative humidity
-# and a negative temperature coefficient(NTC) thermistor used for measuring temperature.
-#
-# Modified to work with Onion Omega2+ and DHT20
-#
-from OmegaExpansion import onionI2C
+# -*- coding: utf-8 -*
+"""
+  *@file DFRobot_DHT20.py
+  *@brief Define the basic structure of class DFRobot_DHT20
+  *@copyright  Copyright (c) 2010 DFRobot Co.Ltd (http://www.dfrobot.com)
+  *@licence     The MIT License (MIT)
+  *@author [fengli](li.feng@dfrobot.com)
+  *@version  V1.0
+  *@date  2021-6-25
+  *@get from https://www.dfrobot.com
+  *@https://github.com/DFRobot/DFRobot_DHT20
+"""
 import time
 
-class DHT(object):
-    DEFAULT_ADDR    = 0x38
-    RESET_REG_ADDR  = 0xba
-    MAX_CNT = 320
-    PULSES_CNT = 41
+from OmegaExpansion import onionI2C
 
-    def __init__(self):        
-        self.bus = onionI2C.OnionI2C()
-        self.addr = self.DEFAULT_ADDR
-        self._dht10_init()
+I2C_ADDR = 0x38 
+                
+class DHT20(object):
+  ''' Conversion data '''
 
-    ######################## dht10 ############################
+  def __init__(self):
+    self.i2cbus = onionI2C.OnionI2C()
+    self._addr = I2C_ADDR
+    self.idle =    0
 
-    def _dht10_start_mess(self):
-        reg_set = [0x33, 0x00]
-        self.bus.writeBytes(self.addr, 0xac, reg_set)
+  '''
+    @brief init function
+    @return Return 0 if initialization succeeds, otherwise return non-zero and error code.
+   '''
+  def begin(self):
 
-    def _dht10_reset(self):
-        self.bus.writeByte(self.addr, self.RESET_REG_ADDR, 0x01)
+    #self.i2cbus.write_byte(self._addr,0xaa)
+    time.sleep(0.5)
+    data = self.read_reg(0x71,1)
     
-    def _dht10_set_system_cfg(self):
-        reg_set = [0x08, 0x00]
-        self.bus.writeBytes(self.addr, 0xe1, reg_set)
+    if (data[0] | 0x08) == 0:
+      return False
+    else:
+      return True
 
-    def _dht10_read_status(self):
-        return self.bus.readBytes(self.addr, 0, 1)[0]
-
-    def _dht10_init(self):
-        time.sleep(.5)
-        self._dht10_reset()
-        # delay is needed after reset
-        time.sleep(.3)
-
-        self._dht10_set_system_cfg()
-        status = self._dht10_read_status()
-        # we must check the calibrate flag, bit[3] : 1 for calibrated ok,0 for Not calibrated.
-        while (status & 0x08 != 0x08):
-            print("try calibrated again!n\n")
-            self._dht10_reset()
-            time.sleep(.5)
-            self._dht10_set_system_cfg()
-            status = self._dht10_read_status()
-            time.sleep(.5)
-
-    #########################################################
-    def _read(self):
-        t = 0
-        h = 0
-        self._dht10_start_mess()
-        time.sleep(.075)
-        # we must check the device busy flag, bit[7] : 1 for busy ,0 for idle.
-        while((self._dht10_read_status() & 0x80) != 0):
-            time.sleep(.5)
-            print("wait for device not busy")
-        from smbus2 import SMBus,i2c_msg,SMBusWrapper
-        with SMBusWrapper(1) as bus:
-            msg = i2c_msg.read(self.addr, 6)
-            data = bus.i2c_rdwr(msg)
-
-        data = list(msg)
-        t = (t | data[1]) << 8
-        t = (t | data[2]) << 8
-        t = (t | data[3]) >> 4
-
-        h = (h | data[3]) << 8
-        h = (h | data[4]) << 8
-        h = (h | data[5]) & 0xfffff
-
-        t = t * 100.0 / 1024 / 1024
-        h = h * 200.0 / 1024 / 1024 - 50
-        #print(data)
-        return t, h
-
-    def read(self, retries = 15):
-        for i in range(retries):
-            humi, temp = self._read()
-            if not humi is None:
-                break
-        if humi is None:
-            return self._last_humi, self._last_temp
-        self._last_humi,self._last_temp = humi, temp
-        return humi, temp
+  '''
+    @brief Get ambient temperature, unit: °C
+    @return ambient temperature,the measurement range is -40°C ~ 80°C
+  '''
+  def get_temperature(self):
+     self.write_reg(0xac,[0x33,0x00])
+     time.sleep(0.1)
+     data = self.read_reg(0x71,7)
+     rawData = ((data[3]&0xf) <<16) + (data[4]<<8)+data[5]
+     #print(rawData)
+     temperature = float(rawData)/5242 -50
+     return temperature
+     
+  '''
+    @brief Get relative humidity, unit: %RH. 
+    @return relative humidity, the measurement range is (1-100%)
+  '''
+  def get_humidity(self):
+     self.write_reg(0xac,[0x33,0x00])
+     time.sleep(0.1)
+     data = self.read_reg(0x71,7)
+     rawData = ((data[3]&0xf0) >>4) + (data[1]<<12)+(data[2]<<4)
+     humidity = float(rawData)/0x100000
+     return humidity*100
+     
+  
+  def write_reg(self, reg, data):
+    time.sleep(0.01)
+    self.i2cbus.writeBytes(self._addr, reg, data)
+  
+  
+  def read_reg(self,reg,len):
+    time.sleep(0.01)
+    rslt = self.i2cbus.readBytes(self._addr, reg, len)
+    #print(rslt)
+    return rslt
