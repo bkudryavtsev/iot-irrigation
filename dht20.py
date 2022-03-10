@@ -9,6 +9,8 @@
   *@date  2021-6-25
   *@get from https://www.dfrobot.com
   *@https://github.com/DFRobot/DFRobot_DHT20
+
+  Modified to work with the Onion Omega2+ platform
 """
 import time
 
@@ -22,17 +24,18 @@ class DHT20(object):
   def __init__(self):
     self.i2cbus = onionI2C.OnionI2C()
     self._addr = I2C_ADDR
-    self.idle =    0
+    self.idle = 0
+
+    if not self.begin():
+        print("Error initializing DHT20")
 
   '''
     @brief init function
     @return Return 0 if initialization succeeds, otherwise return non-zero and error code.
    '''
   def begin(self):
-
-    #self.i2cbus.write_byte(self._addr,0xaa)
     time.sleep(0.5)
-    data = self.read_reg(0x71,1)
+    data = self.read_reg(0x71, 1)
     
     if (data[0] | 0x08) == 0:
       return False

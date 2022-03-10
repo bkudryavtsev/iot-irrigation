@@ -176,7 +176,7 @@ SI114X_IRQEN_PS3 = 0x10
 
 SI114X_ADDR = 0x60
 
-class grove_si114x(object):
+class SI114X(object):
     def __init__(self,address = SI114X_ADDR):
         self.bus = onionI2C.OnionI2C()
         self.addr = address
